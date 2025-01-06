@@ -1,4 +1,5 @@
 import "./message.tact";
+import "./fees.tact";
 
 
 @name(muldiv)
@@ -104,7 +105,7 @@ contract MultiSwap {
             if(value.type == SWAP_ITEM_TYPE_JETTON){
                 send(SendParameters{
                     to: value.address,
-                    value: ton("0.02"),
+                    value: JETTON_WALLET_LOOKUP_FEE,
                     bounce:false,
                     mode: 0,
                     body: ProvideWalletAddressJetton{
@@ -261,9 +262,9 @@ contract MultiSwap {
 
         send(SendParameters{
             to: self.mirror_swap_address!!,
-            value: 0,
+            value: ton("0.02"),
             bounce: false,
-            mode: SendRemainingValue,
+            mode: 0,
             body: MirrorOfferResponse{
                 seller_address: self.seller_address
             }.toCell()
@@ -299,7 +300,7 @@ contract MultiSwap {
 
 
     fun sendAllItemsTo(address: Address, fee_basis_points: Int){
- 
+
         // go for each item in offered
        
         foreach (key, value in self.offered_items){
@@ -308,10 +309,9 @@ contract MultiSwap {
                 let raw_balance = self.unverified_item_balances.get(value.address);
 
                 if(raw_balance != null){
-
                     send(SendParameters{
                         to: value.address,
-                        value: ton("0.03"),
+                        value: NFT_TRANSFER_FEE,
                         bounce: false,
                         mode: 0,
                         body: TransferNFT{
@@ -340,7 +340,7 @@ contract MultiSwap {
                 if(fee>0){
                     send(SendParameters{
                         to: wallet_address,
-                        value: ton("0.05"),
+                        value: JETTON_TRANSFER_FEE,
                         bounce: false,
                         mode: 0,
                         body: TokenTransferJetton{
@@ -360,7 +360,7 @@ contract MultiSwap {
                 if(balance_left>0){
                     send(SendParameters{
                         to: wallet_address,
-                        value: ton("0.05"),
+                        value: JETTON_TRANSFER_FEE,
                         bounce: false,
                         mode: 0,
                         body: TokenTransferJetton{
@@ -374,10 +374,30 @@ contract MultiSwap {
                         }.toCell()
                     });
                 }
-            }
-            
+            }   
         }
+
+
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.01"),
+            bounce: true,
+            mode: SendIgnoreErrors,
+            body: SendExcessInternal{}.toCell()
+        });
         
+    }
+
+    receive(msg: SendExcessInternal){
+        let excess = myBalance() - MIN_TONS_FOR_STORAGE - ton("0.01");
+        if(excess>0){
+            send(SendParameters{
+                to: self.seller_address,
+                value: excess,
+                bounce: true,
+                mode: 0
+            });
+        }
     }
 
     receive(){
@@ -433,7 +453,9 @@ contract MultiSwap {
             requested_items: self.requested_items,
             query_id: self.query_id,
             state: self.state,
-            expiration_time_seconds: self.expiration_time_seconds
+            expiration_time_seconds: self.expiration_time_seconds,
+            is_expired : self.isExpired(),
+            is_initiator: self.is_initiator
         }
     }
     

@@ -4,10 +4,14 @@ import { beginCell, Cell, Dictionary, fromNano, Slice, toNano } from '@ton/core'
 import '@ton/test-utils';
 import { randomBytes } from 'crypto';
 import { InitMultiSwap, MultiSwapRouter, SwapItem } from '../wrappers/MultiSwapRouter';
+import { PersonalDiscovery } from '../wrappers/PersonalDiscovery';
+import { TimeframeDiscovery } from '../wrappers/TimeframeDiscovery';
 import { MultiSwap } from '../wrappers/MultiSwap';
 import { NftItem, Transfer } from '../wrappers/Nft';
 import { TestJetton, TokenTransfer as TokenTransferJetton, Mint as MintJetton, TokenTransfer } from '../wrappers/Jetton';
 import { JettonDefaultWallet } from '../build/Jetton/tact_JettonDefaultWallet';
+
+
 
 
 describe('MiniPay Contract', () => {
@@ -316,7 +320,7 @@ describe('MiniPay Contract', () => {
             data = await buyerSwap.getAllItemsReceived();
             expect(data).toBe(true);
         });
-        
+
         it('should unlock funds', async () => {
             const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
                 router.address,
@@ -343,6 +347,14 @@ describe('MiniPay Contract', () => {
 
             expect(dataSeller).toBe(true);
             expect(dataBuyer).toBe(true);
+
+            const balanceBuyerSwap = (await blockchain.getContract(buyerSwap.address)).balance;
+            const balanceSellerSwap = (await blockchain.getContract(sellerSwap.address)).balance;
+            const balanceRouter = (await blockchain.getContract(router.address)).balance;
+
+            console.log("Buyer Swap Contract Balance:", fromNano(balanceBuyerSwap));
+            console.log("Seller Swap Contract Balance:", fromNano(balanceSellerSwap));
+            console.log("Router Contract Balance:", fromNano(balanceRouter));
         })
     });
 
@@ -554,8 +566,8 @@ describe('MiniPay Contract', () => {
 
 
         });
-   
-        
+
+
 
         it("should send nfts to swap contract", async () => {
             const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
@@ -598,7 +610,7 @@ describe('MiniPay Contract', () => {
 
         });
 
-     
+
 
         it("should send jetton to swap contract (seller)", async () => {
             const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
@@ -628,7 +640,7 @@ describe('MiniPay Contract', () => {
                     query_id: 1n,
                     amount: jetton0Amount,
                     sender: sellerSwap.address,
-                    
+
                     response_destination: deployer.address,
                     custom_payload: null,
                     forward_ton_amount: toNano('0.02'),
@@ -645,7 +657,7 @@ describe('MiniPay Contract', () => {
 
             // now everything is sent
             expect(data).toBe(true);
-            
+
         });
 
 
@@ -664,7 +676,7 @@ describe('MiniPay Contract', () => {
                 requestedItems
             );
 
-            console.log(requestedItems.keys().length," items cost:", fromNano(minValue));
+            console.log(requestedItems.keys().length, " items cost:", fromNano(minValue));
 
 
             const deployResult = await router.send(
@@ -684,7 +696,7 @@ describe('MiniPay Contract', () => {
                 success: false,
             })
         });
-    
+
         // now send 2 nfts to swap
         it('should send nfts to swap contract', async () => {
             const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
@@ -781,7 +793,7 @@ describe('MiniPay Contract', () => {
                     query_id: 2n,
                     amount: jetton1Amount,
                     sender: buyerSwap.address,
-                    
+
                     response_destination: buyer.address,
                     custom_payload: null,
                     forward_ton_amount: toNano('0.02'),
@@ -798,11 +810,11 @@ describe('MiniPay Contract', () => {
 
             // now everything is sent
             expect(data).toBe(true);
-            
+
         });
 
 
-        
+
         it('should unlock funds', async () => {
             const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
                 router.address,
@@ -828,8 +840,192 @@ describe('MiniPay Contract', () => {
 
 
             expect(dataSeller).toBe(true);
+
             expect(dataBuyer).toBe(true);
+
+            // print baalnce of swap coutract 1 and 2
+            const balanceBuyerSwap = (await blockchain.getContract(buyerSwap.address)).balance;
+            const balanceSellerSwap = (await blockchain.getContract(sellerSwap.address)).balance;
+            const balanceRouter = (await blockchain.getContract(router.address)).balance;
+
+            console.log("Buyer Swap Contract Balance:", fromNano(balanceBuyerSwap));
+            console.log("Seller Swap Contract Balance:", fromNano(balanceSellerSwap));
+            console.log("Router Contract Balance:", fromNano(balanceRouter));
         })
+
+
     });
+
+    describe("Discovery Tests", () => {
+
+        let offeredItems: Dictionary<number, SwapItem> = Dictionary.empty();
+        let requestedItems: Dictionary<number, SwapItem> = Dictionary.empty();
+
+        let seller: SandboxContract<TreasuryContract>;
+        let buyer: SandboxContract<TreasuryContract>;
+
+        let router: SandboxContract<MultiSwapRouter>;
+
+        const queryId = BigInt(0);
+
+        let nftItem0: SandboxContract<NftItem>;
+        let nftItem1: SandboxContract<NftItem>;
+        let nftItem2: SandboxContract<NftItem>;
+
+        let swap0: SandboxContract<MultiSwap>;
+        let swap1: SandboxContract<MultiSwap>;
+
+        let timeframeDiscovery: SandboxContract<TimeframeDiscovery>;
+        let personalDiscovery0: SandboxContract<PersonalDiscovery>;
+
+
+        it('should prepare wallets', async () => {
+            router = await getRouterContract();
+            seller = await blockchain.treasury('seller-discovery', { balance: toNano('3') });
+            buyer = await blockchain.treasury('buyer-discovery', { balance: toNano('3') });
+
+        });
+
+        it('should deploy nfts and assign them to wallets', async () => {
+
+            async function createNftItem(receiver: SandboxContract<TreasuryContract>, nft_id: number): Promise<SandboxContract<NftItem>> {
+                const nftItem = blockchain.openContract(await NftItem.fromInit(
+                    deployer.address,
+                    BigInt(nft_id)
+                ));
+
+                // deploy
+                const deployResult = await nftItem.send(
+                    deployer.getSender(),
+                    {
+                        value: toNano('0.05'),
+                    },
+                    {
+                        $$type: 'Transfer',
+                        query_id: 1n,
+                        new_owner: receiver.address,
+                        response_destination: deployer.address,
+                        custom_payload: beginCell().storeStringTail("test").endCell(),
+                        forward_amount: 0n,
+                        forward_payload: beginCell().endCell().asSlice(),
+                    } as Transfer
+
+                );
+                expect(deployResult.transactions).not.toHaveTransaction({
+                    success: false,
+
+                });
+                // verify nftItem is assigned to buyer
+
+                let data = await nftItem.getGetNftData();
+
+                expect(data.owner_address.toString()).toBe(receiver.address.toString());
+
+                return nftItem;
+            }
+
+            nftItem0 = await createNftItem(buyer, 0 + 10);
+            nftItem1 = await createNftItem(buyer, 1 + 10);
+            nftItem2 = await createNftItem(seller, 2 + 10);
+        });
+
+        // create swap
+        it('setup swap setup', async () => {
+            requestedItems.set(0, {
+                $$type: 'SwapItem',
+                amount: 1n,
+                type: BigInt(0), // nft
+                address: nftItem0.address,
+            },
+            );
+
+            requestedItems.set(1, {
+                $$type: 'SwapItem',
+                amount: 1n,
+                type: BigInt(0), // nft
+                address: nftItem1.address,
+            });
+
+            offeredItems.set(0,
+                {
+                    $$type: 'SwapItem',
+                    amount: 1n,
+                    type: BigInt(0), // nft
+                    address: nftItem2.address,
+                }
+            );
+        });
+
+
+        it('should create swap', async () => {
+
+
+            const minValue = await router.getCalculateMinValue(
+                offeredItems
+            );
+            console.log(fromNano(minValue));
+
+            const deployResult = await router.send(
+                seller.getSender(),
+                { value: minValue },
+                {
+                    $$type: 'InitMultiSwap',
+                    offered_items: offeredItems,
+                    requested_items: requestedItems,
+                    query_id: queryId
+                } as InitMultiSwap
+
+            );
+
+            expect(deployResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+            swap0 = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                seller.address,
+                queryId,
+                true, // initiator
+                offeredItems,
+                requestedItems
+            ));
+        });
+
+
+
+        it('announce swap', async () => {
+
+            timeframeDiscovery = blockchain.openContract(await TimeframeDiscovery.fromInit(
+                router.address,
+                await router.getCurrentTimeframe()
+            ));
+
+            const numberOfOffers = await timeframeDiscovery.getNumberOfOffers();
+
+            const offers = await timeframeDiscovery.getRecentOffers(numberOfOffers - 1n, numberOfOffers);
+
+            expect(offers.get(Number(numberOfOffers) - 1)?.toRawString()).toBe(swap0.address.toRawString());
+        });
+
+        it("announce swap to personal discovery", async () => {
+            personalDiscovery0 = blockchain.openContract(await PersonalDiscovery.fromInit(
+                router.address,
+                seller.address
+            ));
+
+            const numberOfOffers = await personalDiscovery0.getNumberOfOffers();
+            expect(numberOfOffers).toBe(1n);
+
+            const offer = await personalDiscovery0.getRecentOffers(numberOfOffers - 1n, numberOfOffers);
+      
+            const offer0 = offer.get(0);
+
+            expect(offer0?.toRawString()).toBe(swap0.address.toRawString());
+        });
+
+
+
+    }
+    );
 
 });

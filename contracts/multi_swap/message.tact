@@ -37,6 +37,8 @@ message MultiSwapData{
     state: Int;
 
     expiration_time_seconds: Int as uint32;
+    is_expired: Bool;
+    is_initiator: Bool;
 
 }
 
@@ -59,9 +61,14 @@ message MirrorOfferResponse{
     seller_address: Address;
 }
 
+message SendExcessInternal{}
+
+
+
+
 
 /*
- External
+Imported
 */
 
 message(0x5fcc3d14) TransferNFT {

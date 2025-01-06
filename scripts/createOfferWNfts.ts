@@ -194,6 +194,7 @@ export async function run(provider: NetworkProvider) {
 
     console.log("sending NFTs and Jettons")
 
+    // this messages can be send in one transaction via Ton Connect
     for (const [key, value] of offeredItems) {
         console.log(`Sending NO.${key}: ${value.amount} ${value.type == 0n ? "nft" : "jetton" } to ${sellerSwap.address.toString()}`)
 
@@ -224,7 +225,7 @@ export async function run(provider: NetworkProvider) {
                     break;
                 }
 
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 3000));
             }
 
 
