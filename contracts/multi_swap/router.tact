@@ -92,6 +92,9 @@ contract MultiSwapRouter with Deployable, OwnableTransferable {
     }
 
     
+    get fun timeFramePeriod(): Int{
+        return self.timeframe_period;
+    }
 
     get fun currentTimeframe(): Int{
         // time with last 3600*24*3 as 0s

@@ -53,7 +53,8 @@ export async function run(provider: NetworkProvider) {
 
     let numOfOffers = await personalDiscovery.getNumberOfOffers();
 
-    let offers = await personalDiscovery.getRecentOffers(numOfOffers - 1n, numOfOffers); // last if and limit
+
+    let offers = await personalDiscovery.getRecentOffers(numOfOffers - 1n, numberOfLastOffersToParse); // last id and limit
 
     
     for (let i = numOfOffers-1n; i >= numOfOffers - numberOfLastOffersToParse; i--) {

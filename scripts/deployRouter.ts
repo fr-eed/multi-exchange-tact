@@ -5,6 +5,10 @@ import { MultiSwapRouter } from '../wrappers/MultiSwapRouter';
 
 export async function run(provider: NetworkProvider) {
     const router = provider.open(await MultiSwapRouter.fromInit());
+
+    if (await provider.isContractDeployed(router.address)){
+        throw "Router already deployed"
+    }
     
     await router.send(provider.sender(),
         {
@@ -16,5 +20,7 @@ export async function run(provider: NetworkProvider) {
         }
     );
 
-    await provider.waitForDeploy(router.address);    
+    await provider.waitForDeploy(router.address);
+
+    console.log(`Router deployed at address: ${router.address}`);
 }

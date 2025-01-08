@@ -25,5 +25,4 @@ contract PersonalDiscovery with OfferQuery {
         self.router_address = router_address;
     }
 
-
 }

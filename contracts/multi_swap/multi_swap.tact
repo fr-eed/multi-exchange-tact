@@ -188,7 +188,7 @@ contract MultiSwap {
             // This request confirms that we are ready to swap
             send(SendParameters{
                 to: self.mirror_swap_address!!,
-                value: ton("0.04"),
+                value: ton("0.06"),
                 bounce: true,
                 mode: 0,
                 body: MirrorOfferRequest{
@@ -262,7 +262,7 @@ contract MultiSwap {
 
         send(SendParameters{
             to: self.mirror_swap_address!!,
-            value: ton("0.02"),
+            value: ton("0.03"),
             bounce: false,
             mode: 0,
             body: MirrorOfferResponse{
@@ -305,10 +305,10 @@ contract MultiSwap {
        
         foreach (key, value in self.offered_items){
             if(value.type == SWAP_ITEM_TYPE_NFT){
-
                 let raw_balance = self.unverified_item_balances.get(value.address);
+                let current_balance= raw_balance!=null ? raw_balance!! : 0;
 
-                if(raw_balance != null){
+                if(current_balance > 0){
                     send(SendParameters{
                         to: value.address,
                         value: NFT_TRANSFER_FEE,
@@ -325,6 +325,7 @@ contract MultiSwap {
                     });
                 }
 
+                //self.unverified_item_balances.set(value.address, 0);
             }
             else if(value.type == SWAP_ITEM_TYPE_JETTON){
 
@@ -374,8 +375,11 @@ contract MultiSwap {
                         }.toCell()
                     });
                 }
+
+                //self.unverified_item_balances.set(wallet_address, 0);
             }   
         }
+
 
 
         send(SendParameters{

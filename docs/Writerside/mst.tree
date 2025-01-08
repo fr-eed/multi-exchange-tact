@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE instance-profile
+        SYSTEM "https://resources.jetbrains.com/writerside/1.0/product-profile.dtd">
+
+<instance-profile id="in"
+                 name="Multi Swap TACT"
+                 start-page="Abstract-Overwiev.md">
+
+    <toc-element topic="Abstract-Overwiev.md"/>
+    <toc-element toc-title="Testnet">
+        <toc-element topic="Testnet-Deploy-Router.md"/>
+        <toc-element topic="Testnet-Respond-To-Offer.md"/>
+        <toc-element topic="Creating-Offer.md"/>
+    </toc-element>
+    <toc-element topic="Router.md"/>
+    <toc-element topic="Create-Offer-Manually.md"/>
+    <toc-element topic="Respond-to-Offer-Manually.md"/>
+    <toc-element topic="Find-Offers.md"/>
+    <toc-element topic="Constants.md"/>
+    <toc-element topic="Messages.md"/>
+</instance-profile>

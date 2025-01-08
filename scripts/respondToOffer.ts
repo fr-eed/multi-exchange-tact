@@ -32,8 +32,17 @@ export async function run(provider: NetworkProvider) {
     let requestedItems = sellerData.requested_items;
 
     let state = sellerData.state;
+
+    if(state!=2n){
+        throw "Contract is not waiting to bond"
+    }
+
+    if (sellerData.is_expired){
+        throw "Contract is expired"
+    }
+    
     /*
-        // Waiting for extra data from router
+    // Waiting for extra data from router
     const StateDeployment: Int = 0;
 
     // Contract waits for all the funds to be collected and then waits to be swapped by mirror contract
@@ -56,9 +65,7 @@ export async function run(provider: NetworkProvider) {
 
     */
 
-    if(state!=2n){
-        throw "Contract is not waiting to bond"
-    }
+
 
 
     const minValue = await router.getCalculateMinValue(

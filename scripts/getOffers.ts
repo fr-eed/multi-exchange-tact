@@ -42,6 +42,8 @@ export async function run(provider: NetworkProvider) {
                     router.address,
                     await router.getCurrentTimeframe()
                 ));
+    
+    let timeFramePeriod = await router.getTimeFramePeriod();
     //    // validate contract deployed
     if (!await provider.isContractDeployed(timeframeDiscovery.address)){
         throw "TimeframeDiscovery not deployed"
@@ -49,7 +51,7 @@ export async function run(provider: NetworkProvider) {
 
     let numOfOffers = await timeframeDiscovery.getNumberOfOffers();
 
-    let offers = await timeframeDiscovery.getRecentOffers(numOfOffers - 1n, numOfOffers); // last if and limit
+    let offers = await timeframeDiscovery.getRecentOffers(numOfOffers - 1n, numberOfLastOffersToParse); // last id and limit
 
     
     for (let i = numOfOffers-1n; i >= numOfOffers - numberOfLastOffersToParse; i--) {
