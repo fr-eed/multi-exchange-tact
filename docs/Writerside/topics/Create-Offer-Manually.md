@@ -175,7 +175,7 @@ This guide explains how to create an offer manually by interacting with the cont
    }
    ```
 
-7. **Confirm the Transaction**:
+8. **Confirm the Transaction**:
    After sending the NFTs and Jettons to the offer contract, the transaction is complete. The contract is now ready to be used, and you can confirm the assets have been successfully sent.
     
    Refer to [constants](Constants.md) to know at which state contract is in.
@@ -183,7 +183,7 @@ This guide explains how to create an offer manually by interacting with the cont
    In our case healthy response should be 2, that would mean that all Jettons and NFTs have been received and contract is now waiting to bond with buyer.
     
    
-   Note: it make take some time for contract to receive Jettons and NFTs
+   >Note: it may take some time for contract to receive Jettons and NFTs
    
    
    ```ts
@@ -196,7 +196,7 @@ This guide explains how to create an offer manually by interacting with the cont
     }
    ```
 
-8. **Failed Scenario**:
+9. **Failed Scenario**:
   In case if seller won't be able to find a buyer or for some reason won't be able to provide all the assets, contract will expire in `expiration_time_seconds` timestamp
 
   This is only possible on StateFailed or when contract has expired on state `StateAwaitingFunds(1)` | `StateReadyToSwap(2)`

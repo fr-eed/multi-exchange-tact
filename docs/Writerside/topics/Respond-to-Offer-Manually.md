@@ -54,7 +54,7 @@ This guide explains how to respond to an offer manually by interacting with the 
 5. **Find Query ID**:
    Loop through potential `queryId` values to find a valid one for the response contract, ensuring it doesn't interfere with any existing contracts.
     
-   ! Do not forget to swap the requestedItems with offeredItems because sellers offered is buyers requested
+   > ! Do not forget to swap the requestedItems with offeredItems because sellers offered is buyers requested
    ```ts
    let queryId = 0n;
    let buyerSwap: OpenedContract<MultiSwap>;
@@ -80,7 +80,7 @@ This guide explains how to respond to an offer manually by interacting with the 
 6. **Deploy the Response Contract**:
    If the response contract is not already deployed, send the necessary initialization transaction to deploy the response contract.
    
-! Do not forget to swap the requestedItems with offeredItems because sellers offered is buyers requested
+>  ! Do not forget to swap the requestedItems with offeredItems because sellers offered is buyers requested
 ```ts
    const deployResult = await router.send(
        provider.sender(),

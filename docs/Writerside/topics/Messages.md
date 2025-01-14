@@ -12,7 +12,9 @@ Message `MultiSwapData` is used to store data about the contract state.
 * `is_expired`: `Bool` - whether the contract is expired.
 * `is_initiator`: `Bool` - whether the contract is the initiator of the trade.
 
-Note: offered_items and requested_items should be a map of ints starting from 0 in sorted order.
+> Note: offered_items and requested_items should be a map of ints starting from 0 in sorted order.
+>
+> {0: SwapItem, 1:SwapItem}
 
 ```tact
 message MultiSwapData{
@@ -60,6 +62,7 @@ Message `MultiSwapRouterData` is used to store parameters of the MultiSwapRouter
 * `fixed_fee_in_ton`: `coins` - fixed fee in Toncoin that is applied to both seller and buyer.
 * `swap_fee_basis_points`: `uint16` - fee in basis points (1/100 of 1%) that is applied to both seller and buyer in swap tokens.
 * `swap_ttl_seconds`: `uint32` - time-to-live for the swap in seconds.
+
 ```tact
 
 message MultiSwapRouterData {

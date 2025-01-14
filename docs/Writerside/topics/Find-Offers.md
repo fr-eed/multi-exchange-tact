@@ -157,9 +157,25 @@ function getStateString(state: number) {
 
 ### Querying Older Timeframes
 
-To query older timeframes, you can use the `getTimeFramePeriod()` method to get the period of the current timeframe and subtract from it to access past periods.
+To query older timeframes, you can use the `getCurrentTimeframe()` method to get current timeframe.
+
+Current timestamp is being divided by that number, so to find previous timeframe, just sub 1 from timeframe.
 
 ```javascript
+let currentTimeframe = await router.getCurrentTimeframe();
+
+let previousTimeframe = currentTimeframe - 1n;
+```
+You can also find timeframe by dividing unix timestamp in seconds by timeFramePeriod:
+```ts
+// Alternative method to find
 let timeFramePeriod = await router.getTimeFramePeriod();
+
+function tact_now() {
+    return BigInt(new Date().getTime()) / BigInt(1000);
+}
+
+let currentTimeframe = tact_now() / timeFramePeriod;
+
 ```
 
