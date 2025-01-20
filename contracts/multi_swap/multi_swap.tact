@@ -81,6 +81,15 @@ contract MultiSwap {
         self.state=self.StateDeployment;
     }
 
+    get fun isFundsUnlocked(): Bool {
+        return self.state == self.StateSwapped;
+    }
+
+    get fun isExpired(): Bool {
+        return self.expiration_time_seconds != 0 && now() > self.expiration_time_seconds;
+    }
+
+
     // deploys
     receive(msg: MultiSwapDeployment){
         require(self.state == self.StateDeployment, "Wrong state");
@@ -188,7 +197,7 @@ contract MultiSwap {
             // This request confirms that we are ready to swap
             send(SendParameters{
                 to: self.mirror_swap_address!!,
-                value: ton("0.06"),
+                value: ton("0.03"),
                 bounce: true,
                 mode: 0,
                 body: MirrorOfferRequest{
@@ -270,17 +279,19 @@ contract MultiSwap {
             }.toCell()
         });
 
-        self.sendAllItemsTo(self.buyer_address!!, self.swap_fee_basis_points);
+        // release assets
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.02"),
+            bounce: false,
+            mode: 0,
+            body: WithdrawBuyer{
+                query_id: self.query_id
+            }.toCell()
+        })
 
     }
 
-    get fun isFundsUnlocked(): Bool {
-        return self.state == self.StateSwapped;
-    }
-
-    get fun isExpired(): Bool {
-        return self.expiration_time_seconds != 0 && now() > self.expiration_time_seconds;
-    }
 
     receive(msg: MirrorOfferResponse){
         // security check
@@ -294,7 +305,30 @@ contract MultiSwap {
 
         self.state = self.StateSwapped;
 
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.03"),
+            bounce: false,
+            mode: 0,
+            body: WithdrawBuyer{
+                query_id: self.query_id
+            }.toCell()
+        })
+    }
+
+    receive(msg: WithdrawBuyer) {
+        require(self.state == self.StateSwapped, "Wrong state");
         self.sendAllItemsTo(self.buyer_address!!, self.swap_fee_basis_points);
+
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.01"),
+            bounce: true,
+            mode: SendIgnoreErrors,
+            body: SendExcessInternal{
+                query_id: msg.query_id
+            }.toCell()
+        });
     }
     
 
@@ -379,54 +413,41 @@ contract MultiSwap {
                 //self.unverified_item_balances.set(wallet_address, 0);
             }   
         }
-
-
-
-        send(SendParameters{
-            to: myAddress(),
-            value: ton("0.01"),
-            bounce: true,
-            mode: SendIgnoreErrors,
-            body: SendExcessInternal{}.toCell()
-        });
         
     }
 
-    receive(msg: SendExcessInternal){
-        let excess = myBalance() - MIN_TONS_FOR_STORAGE - ton("0.01");
-        if(excess>0){
-            send(SendParameters{
-                to: self.seller_address,
-                value: excess,
-                bounce: true,
-                mode: 0
-            });
-        }
-    }
 
-    receive(){
-        
-    }
 
-    receive("withdraw_seller") {
+    receive(msg: WithdrawSeller){ 
         let ctx: Context = context();
-        require(ctx.sender == self.seller_address, "Unauthorized withdraw attempt");
+        require(ctx.sender == self.seller_address||
+            ctx.sender == myAddress()
+        , "Unauthorized withdraw attempt");
         // Only possible if isExpired 
         // and state is either StateAwaitingFunds, StateReadyToSwap
         // or just StateFailed
 
-        if(self.state == self.StateFailed){
+        if((
+            self.state == self.StateFailed)
+            ||
+            ((self.state != self.StateSwapped) && self.isExpired())
+        ){ 
+            self.state = self.StateFailed;
+
             self.sendAllItemsTo(self.seller_address, 0);
+
+            send(SendParameters{
+                to: myAddress(),
+                value: ton("0.01"),
+                bounce: true,
+                mode: SendIgnoreErrors,
+                body: SendExcessInternal{
+                    query_id: msg.query_id
+                }.toCell()
+            });
             return;
         }
 
-        else if(self.state == self.StateAwaitingFunds || self.state == self.StateReadyToSwap){
-            if(self.isExpired()){
-                self.state = self.StateFailed;
-                self.sendAllItemsTo(self.seller_address, 0);
-                return;
-            }
-        }
         require(false, "Withdraw not allowed");
     }
 
@@ -450,9 +471,16 @@ contract MultiSwap {
         return contractAddress(self.multiSwapInit(seller_address, query_id, is_initiator, offered_items, requested_items));
     }
 
+    get fun mirrorSwapAddress(): Address?{
+        return self.mirror_swap_address;
+    }
+
 
     get fun data(): MultiSwapData{
         return MultiSwapData{
+            router_address: self.router_address,
+            seller_address: self.seller_address,
+            
             offered_items: self.offered_items,
             requested_items: self.requested_items,
             query_id: self.query_id,
@@ -462,5 +490,22 @@ contract MultiSwap {
             is_initiator: self.is_initiator
         }
     }
+
+
+    receive(msg: SendExcessInternal){
+        require(self.state == self.StateSwapped, "Wrong state");
+        let excess = myBalance() - MIN_TONS_FOR_STORAGE - ton("0.01");
+        if(excess>0){
+            send(SendParameters{
+                to: self.seller_address,
+                value: excess,
+                bounce: true,
+                mode: 0,
+                body: Excesses { query_id: msg.query_id }.toCell()
+            });
+        }
+    }
+
+    receive(){}
     
 }

@@ -843,6 +843,13 @@ describe('MiniPay Contract', () => {
 
             expect(dataBuyer).toBe(true);
 
+            // get data validate state to be swapped in both
+            const dataBuyerSwap = await buyerSwap.getData();
+            const dataSellerSwap = await sellerSwap.getData();
+
+            expect(dataBuyerSwap.state).toBe(4n);
+            expect(dataSellerSwap.state).toBe(4n);
+
             // print baalnce of swap coutract 1 and 2
             const balanceBuyerSwap = (await blockchain.getContract(buyerSwap.address)).balance;
             const balanceSellerSwap = (await blockchain.getContract(sellerSwap.address)).balance;

@@ -31,15 +31,21 @@ message InitMultiSwap{
 
 
 message MultiSwapData{
+    // const
+    router_address: Address;
+    seller_address: Address;
+    query_id: Int as uint32;
+    is_initiator: Bool; // only initiator can accept offer
+
     offered_items: map<Int as uint8, SwapItem>; // List of up to 4 offered items with type and amount
     requested_items: map<Int as uint8, SwapItem>; // List of up to 4 requested items with type and amount
-    query_id: Int as uint32;
-    state: Int;
 
+    // set by router
     expiration_time_seconds: Int as uint32;
-    is_expired: Bool;
-    is_initiator: Bool;
 
+    // dynamic
+    state: Int;
+    is_expired: Bool;
 }
 
 
@@ -61,15 +67,29 @@ message MirrorOfferResponse{
     seller_address: Address;
 }
 
-message SendExcessInternal{}
+message SendExcessInternal{
+    query_id: Int as uint64;
+}
 
 
+
+message WithdrawSeller{
+    query_id: Int as uint64;
+}
+
+message WithdrawBuyer{
+    query_id: Int as uint64;
+}
 
 
 
 /*
 Imported
 */
+
+message(0xd53276db) Excesses {
+    query_id: Int as uint64;
+}
 
 message(0x5fcc3d14) TransferNFT {
     query_id: Int as uint64;

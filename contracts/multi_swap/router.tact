@@ -9,9 +9,9 @@ import "@stdlib/ownable";
 contract MultiSwapRouter with Deployable, OwnableTransferable {
     init(){
         self.max_items_per_side = 4;
-        self.fixed_fee_in_ton = ton("0.1");
+        self.fixed_fee_in_ton = ton("0.01");
         self.swap_fee_basis_points = 100;
-        self.swap_ttl_seconds = 60*60*1;
+        self.swap_ttl_seconds = 60*60*6; // 6 hours
         self.owner = context().sender;
     }
     owner: Address;
@@ -73,7 +73,6 @@ contract MultiSwapRouter with Deployable, OwnableTransferable {
                 value.type == SWAP_ITEM_TYPE_NFT
             ){
                 fee+=FEE_PER_NFT_ITEM;
-
             }else{
                 fee+=FEE_PER_JETTON_ITEM;
             }
