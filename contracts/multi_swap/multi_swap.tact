@@ -239,6 +239,17 @@ contract MultiSwap {
     bounced(msg: bounced<MirrorOfferRequest>){
         // buyer declined.
         self.state = self.StateFailed;
+
+        
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.02"),
+            bounce: false,
+            mode: 0,
+            body: WithdrawSeller{
+                query_id: self.query_id
+            }.toCell()
+        })
     }
 
     receive(msg: MirrorOfferRequest){
@@ -427,28 +438,30 @@ contract MultiSwap {
         // and state is either StateAwaitingFunds, StateReadyToSwap
         // or just StateFailed
 
-        if((
-            self.state == self.StateFailed)
-            ||
-            ((self.state != self.StateSwapped) && self.isExpired())
-        ){ 
-            self.state = self.StateFailed;
+        require(
+            (self.state == self.StateFailed) ||
+            (
+                (self.state != self.StateSwapped) &&
+                self.isExpired()
+            )
+        , "Withdraw not allowed");
+        
+  
+        self.state = self.StateFailed;
 
-            self.sendAllItemsTo(self.seller_address, 0);
+        self.sendAllItemsTo(self.seller_address, 0);
 
-            send(SendParameters{
-                to: myAddress(),
-                value: ton("0.01"),
-                bounce: true,
-                mode: SendIgnoreErrors,
-                body: SendExcessInternal{
-                    query_id: msg.query_id
-                }.toCell()
-            });
-            return;
-        }
+        send(SendParameters{
+            to: myAddress(),
+            value: ton("0.01"),
+            bounce: true,
+            mode: SendIgnoreErrors,
+            body: SendExcessInternal{
+                query_id: msg.query_id
+            }.toCell()
+        });
 
-        require(false, "Withdraw not allowed");
+        return;
     }
 
 

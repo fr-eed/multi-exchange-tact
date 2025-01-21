@@ -2,11 +2,11 @@ import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import { beginCell, Cell, Dictionary, fromNano, Slice, toNano } from '@ton/core';
 
 import '@ton/test-utils';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { InitMultiSwap, MultiSwapRouter, SwapItem } from '../wrappers/MultiSwapRouter';
 import { PersonalDiscovery } from '../wrappers/PersonalDiscovery';
 import { TimeframeDiscovery } from '../wrappers/TimeframeDiscovery';
-import { MultiSwap } from '../wrappers/MultiSwap';
+import { MultiSwap, WithdrawToken } from '../wrappers/MultiSwap';
 import { NftItem, Transfer } from '../wrappers/Nft';
 import { TestJetton, TokenTransfer as TokenTransferJetton, Mint as MintJetton, TokenTransfer } from '../wrappers/Jetton';
 import { JettonDefaultWallet } from '../build/Jetton/tact_JettonDefaultWallet';
@@ -359,7 +359,7 @@ describe('MiniPay Contract', () => {
     });
 
 
-    describe("Jetton-NFT swap", () => {
+    describe("Jetton-NFT swap ", () => {
         let offeredItems: Dictionary<number, SwapItem> = Dictionary.empty();
         let requestedItems: Dictionary<number, SwapItem> = Dictionary.empty();
 
@@ -860,6 +860,569 @@ describe('MiniPay Contract', () => {
             console.log("Router Contract Balance:", fromNano(balanceRouter));
         })
 
+
+        // try to withdraw fee token from router
+
+        it('should withdraw fee token', async () => {
+                    
+            // get balance
+            const jettonWalletRouter = blockchain.openContract(await JettonDefaultWallet.fromAddress(
+                await jetton1.getGetWalletAddress(
+                    router.address
+                )
+            ));
+
+            const jettonWalletDeployer = blockchain.openContract(await JettonDefaultWallet.fromAddress(
+                await jetton1.getGetWalletAddress(
+                    deployer.address
+                )
+            ))
+            let balanceDeployerBefore = 0n;
+            // f deployed
+            try{
+                 balanceDeployerBefore = (await jettonWalletDeployer.getGetWalletData()).balance;
+
+            }catch(e){
+                // not deployed rn
+            }
+
+          
+            const balanceRouterBefore = (await jettonWalletRouter.getGetWalletData()).balance;
+
+            //except router to have some fee
+            expect(balanceRouterBefore).toBeGreaterThan(0n);
+
+
+            const withdrawResult = await router.send(
+                deployer.getSender(),
+                {
+                    value: toNano('0.06'),
+                },
+                {
+                    $$type: 'WithdrawToken',
+                    jetton_wallet_address: jettonWalletRouter.address,
+                    query_id: 0n,
+                    amount: balanceRouterBefore
+                } as WithdrawToken
+            );
+
+            expect(withdrawResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+
+            const balanceDeployerAfter = (await jettonWalletDeployer.getGetWalletData()).balance;
+            const balanceRouterAfter = (await jettonWalletRouter.getGetWalletData()).balance;
+
+            expect(balanceDeployerAfter).toBe(balanceDeployerBefore+balanceRouterBefore);
+            expect(balanceRouterAfter).toBe(0n);
+        })
+
+    });
+
+
+    describe("Jetton-NFT swap revert", () => {
+        let offeredItems: Dictionary<number, SwapItem> = Dictionary.empty();
+        let requestedItems: Dictionary<number, SwapItem> = Dictionary.empty();
+
+        let seller: SandboxContract<TreasuryContract>;
+        let buyer: SandboxContract<TreasuryContract>;
+
+        let router: SandboxContract<MultiSwapRouter>;
+
+        const queryId = BigInt(0);
+
+        let nftItem0: SandboxContract<NftItem>;
+        let nftItem1: SandboxContract<NftItem>;
+        let nftItem2: SandboxContract<NftItem>;
+
+        let jetton0: SandboxContract<TestJetton>;
+        let jetton1: SandboxContract<TestJetton>;
+
+        let jetton0Amount = 15000n;
+        let jetton1Amount = 10000n;
+
+        it('should prepare wallets', async () => {
+            router = await getRouterContract();
+            seller = await blockchain.treasury('seller-nft-jetton2', { balance: toNano('3') });
+            buyer = await blockchain.treasury('buyer-nft-jetton2', { balance: toNano('3') });
+
+        });
+
+        it('should deploy nfts and assign them to wallets', async () => {
+
+            async function createNftItem(receiver: SandboxContract<TreasuryContract>, nft_id: number): Promise<SandboxContract<NftItem>> {
+                const nftItem = blockchain.openContract(await NftItem.fromInit(
+                    deployer.address,
+                    BigInt(nft_id)
+                ));
+
+                // deploy
+                const deployResult = await nftItem.send(
+                    deployer.getSender(),
+                    {
+                        value: toNano('0.05'),
+                    },
+                    {
+                        $$type: 'Transfer',
+                        query_id: 1n,
+                        new_owner: receiver.address,
+                        response_destination: deployer.address,
+                        custom_payload: beginCell().storeStringTail("test").endCell(),
+                        forward_amount: 0n,
+                        forward_payload: beginCell().endCell().asSlice(),
+                    } as Transfer
+
+                );
+                expect(deployResult.transactions).not.toHaveTransaction({
+                    success: false,
+
+                });
+                // verify nftItem is assigned to buyer
+
+                let data = await nftItem.getGetNftData();
+
+                expect(data.owner_address.toString()).toBe(receiver.address.toString());
+
+                return nftItem;
+            }
+
+            nftItem0 = await createNftItem(buyer, 120);
+            nftItem1 = await createNftItem(buyer, 121);
+            nftItem2 = await createNftItem(seller, 122);
+        });
+
+        it("should deploy jettons and mint them", async () => {
+
+            async function createJettonAndMint(receiver: SandboxContract<TreasuryContract>, id: number, amount: bigint): Promise<SandboxContract<TestJetton>> {
+                const jettonItem = blockchain.openContract(await TestJetton.fromInit(
+                    deployer.address,
+                    beginCell().storeInt(id, 32).endCell(),
+                    100000n // 100k 
+                ));
+
+                // deploy
+                const deployResult = await jettonItem.send(
+                    deployer.getSender(),
+                    {
+                        value: toNano('0.05'),
+                    },
+                    {
+                        $$type: 'Deploy',
+                        queryId: 0n,
+                    }
+                );
+                expect(deployResult.transactions).not.toHaveTransaction({
+                    success: false,
+
+                });
+
+                // mint jetton to receiver
+
+                const mintResult = await jettonItem.send(
+                    deployer.getSender(),
+                    {
+                        value: toNano('0.05'),
+                    },
+                    {
+                        $$type: 'Mint',
+                        receiver: receiver.address,
+                        amount: amount
+                    }
+                )
+                expect(mintResult.transactions).not.toHaveTransaction({
+                    success: false,
+                });
+
+                // check if receiver has the balance
+
+                const jettonWalletAddress = await jettonItem.getGetWalletAddress(
+                    receiver.address
+                );
+
+                const jettonWallet = blockchain.openContract(await JettonDefaultWallet.fromAddress(
+                    jettonWalletAddress
+                ));
+
+                const data = await jettonWallet.getGetWalletData()
+
+
+                expect(data.balance).toBe(amount);
+
+                return jettonItem;
+            }
+
+            jetton0 = await createJettonAndMint(seller, 0, jetton0Amount);
+            jetton1 = await createJettonAndMint(buyer, 1, jetton1Amount);
+
+            console.log(jetton0.address);
+        });
+
+        // create swap
+        it('setup swap setup', async () => {
+
+
+            offeredItems.set(0,
+                {
+                    $$type: 'SwapItem',
+                    amount: 1n,
+                    type: BigInt(0), // nft
+                    address: nftItem2.address,
+                }
+            );
+
+            offeredItems.set(1,
+                {
+                    $$type: 'SwapItem',
+                    amount: jetton0Amount,
+                    type: BigInt(1), // jetton
+                    address: jetton0.address,
+                }
+            );
+
+            requestedItems.set(0, {
+                $$type: 'SwapItem',
+                amount: 1n,
+                type: BigInt(0), // nft
+                address: nftItem0.address,
+            },
+            );
+
+            requestedItems.set(1, {
+                $$type: 'SwapItem',
+                amount: 1n,
+                type: BigInt(0), // nft
+                address: nftItem1.address,
+            });
+
+            requestedItems.set(2, {
+                $$type: 'SwapItem',
+                amount: jetton1Amount,
+                type: BigInt(1), // jetton
+                address: jetton1.address,
+            });
+        });
+
+
+        it('should create swap', async () => {
+
+            const minValue = await router.getCalculateMinValue(
+                offeredItems
+            );
+
+            const deployResult = await router.send(
+                seller.getSender(),
+                { value: minValue },
+                {
+                    $$type: 'InitMultiSwap',
+                    offered_items: offeredItems,
+                    requested_items: requestedItems,
+                    query_id: queryId
+                } as InitMultiSwap
+            );
+
+
+            expect(deployResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+
+        });
+
+
+
+        it("should send jetton to swap contract (seller)", async () => {
+            const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                seller.address,
+                queryId,
+                true, // initiator
+                offeredItems,
+                requestedItems
+            ));
+
+            const jettonWalletAddress = await jetton0.getGetWalletAddress(
+                seller.address
+            );
+
+            const jettonWallet = blockchain.openContract(await JettonDefaultWallet.fromAddress(
+                jettonWalletAddress
+            ));
+
+            const transferResult = await jettonWallet.send(
+                seller.getSender(),
+                {
+                    value: toNano('0.07'),
+                },
+                {
+                    $$type: 'TokenTransfer',
+                    query_id: 1n,
+                    amount: jetton0Amount,
+                    sender: sellerSwap.address,
+
+                    response_destination: deployer.address,
+                    custom_payload: null,
+                    forward_ton_amount: toNano('0.02'),
+                    forward_payload: beginCell().endCell().asSlice(),
+                } as TokenTransfer
+
+            );
+
+            expect(transferResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+            let data = await sellerSwap.getAllItemsReceived();
+
+            // we forgot to send and nft. Whoops
+            expect(data).toBe(false);
+
+        });
+
+
+        // respond
+        it('should create response swap', async () => {
+            const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                seller.address,
+                queryId,
+                true, // initiator
+                offeredItems,
+                requestedItems
+            ));
+
+            const minValue = await router.getCalculateMinValue(
+                requestedItems
+            );
+
+            console.log(requestedItems.keys().length, " items cost:", fromNano(minValue));
+
+
+            const deployResult = await router.send(
+                buyer.getSender(),
+                { value: minValue },
+                {
+                    $$type: 'InitMultiSwap',
+                    offered_items: requestedItems, // seller request -> our offer
+                    requested_items: offeredItems,
+                    query_id: queryId,
+                    mirror_swap_address: sellerSwap.address
+                } as InitMultiSwap
+
+            );
+
+            expect(deployResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+        });
+
+        // now send 2 nfts to swap
+        it('should send nfts to swap contract', async () => {
+            const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                buyer.address,
+                queryId,
+                false, // initiator
+                requestedItems,
+                offeredItems
+            ));
+            // send nfts to that address
+
+            let data = await buyerSwap.getAllItemsReceived()
+            expect(data).toBe(false);
+
+            const transferResult = await nftItem0.send(
+                buyer.getSender(),
+                {
+                    value: toNano('0.07'),
+                },
+                {
+                    $$type: 'Transfer',
+                    query_id: 1n,
+                    new_owner: buyerSwap.address,
+                    response_destination: deployer.address,
+                    custom_payload: null,
+                    forward_amount: toNano('0.02'),
+                    forward_payload: beginCell().endCell().asSlice(),
+                } as Transfer
+
+            );
+
+            expect(transferResult.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+            data = await buyerSwap.getAllItemsReceived()
+            expect(data).toBe(false);
+
+            // send second nft
+            const transferResult2 = await nftItem1.send(
+                buyer.getSender(),
+                {
+                    value: toNano('0.07'),
+                },
+                {
+                    $$type: 'Transfer',
+                    query_id: 1n,
+                    new_owner: buyerSwap.address,
+                    response_destination: buyer.address,
+                    custom_payload: null,
+                    forward_amount: toNano('0.03'),
+                    forward_payload: beginCell().endCell().asSlice(),
+                } as Transfer
+
+            );
+
+            expect(transferResult2.transactions).not.toHaveTransaction({
+                success: false,
+            })
+
+            // buyer swap should have received nfts
+    
+            data = await buyerSwap.getAllItemsReceived();
+            expect(data).toBe(false);
+        });
+
+
+        it("should send jetton to swap contract (buyer)", async () => {
+            const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                buyer.address,
+                queryId,
+                false, // initiator
+                requestedItems,
+                offeredItems
+            ));
+
+            const jettonWalletAddress = await jetton1.getGetWalletAddress(
+                buyer.address
+            );
+
+            const jettonWallet = blockchain.openContract(await JettonDefaultWallet.fromAddress(
+                jettonWalletAddress
+            ));
+
+            const transferResult = await jettonWallet.send(
+                buyer.getSender(),
+                {
+                    value: toNano('0.07'),
+                },
+                {
+                    $$type: 'TokenTransfer',
+                    query_id: 2n,
+                    amount: jetton1Amount,
+                    sender: buyerSwap.address,
+
+                    response_destination: buyer.address,
+                    custom_payload: null,
+                    forward_ton_amount: toNano('0.02'),
+                    forward_payload: beginCell().endCell().asSlice(),
+                } as TokenTransfer
+
+            );
+
+            expect(transferResult.transactions).toHaveTransaction({
+                success: false,
+            })
+
+            let data = await buyerSwap.getAllItemsReceived();
+
+            // now everything is sent
+            expect(data).toBe(true);
+
+        });
+
+
+
+        it('should have right states', async () => {
+            const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                buyer.address,
+                queryId,
+                false, // initiator
+                requestedItems,
+                offeredItems
+            ));
+
+            const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                seller.address,
+                queryId,
+                true, // initiator
+                offeredItems,
+                requestedItems
+            ));
+
+            //automatically
+            const dataBuyer = await buyerSwap.getIsFundsUnlocked();
+            const dataSeller = await sellerSwap.getIsFundsUnlocked();
+
+
+            expect(dataSeller).toBe(false);
+
+            expect(dataBuyer).toBe(false);
+
+            // get data validate state to be swapped in both
+            const dataBuyerSwap = await buyerSwap.getData();
+            const dataSellerSwap = await sellerSwap.getData();
+
+            expect(dataBuyerSwap.state === -1n).toBe(true);
+            expect(dataSellerSwap.state=== 1n).toBe(true);
+
+            // print baalnce of swap coutract 1 and 2
+            const balanceBuyerSwap = (await blockchain.getContract(buyerSwap.address)).balance;
+            const balanceSellerSwap = (await blockchain.getContract(sellerSwap.address)).balance;
+            const balanceRouter = (await blockchain.getContract(router.address)).balance;
+
+            console.log("Buyer Swap Contract Balance:", fromNano(balanceBuyerSwap));
+            console.log("Seller Swap Contract Balance:", fromNano(balanceSellerSwap));
+            console.log("Router Contract Balance:", fromNano(balanceRouter));
+
+        })
+
+        it("should transfer back funds of buyer" , async () => {
+
+            const buyerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                buyer.address,
+                queryId,
+                false, // initiator
+                requestedItems,
+                offeredItems
+            ));
+
+            const sellerSwap = blockchain.openContract(await MultiSwap.fromInit(
+                router.address,
+                seller.address,
+                queryId,
+                true, // initiator
+                offeredItems,
+                requestedItems
+            ))
+
+            //nft0 nft1 should be owned buy buyer
+            const nft0Data =await  nftItem0.getGetNftData();
+
+            // should not be owned by buyswap
+            expect(nft0Data.owner_address.toString()).not.toBe(buyerSwap.address.toString());
+
+            expect(nft0Data.owner_address.toString()).toBe(buyer.address.toString());
+            
+            const nft1Data =await  nftItem1.getGetNftData(); 
+            
+            expect(nft1Data.owner_address.toString()).not.toBe(buyerSwap.address.toString());
+            // print all addresses, buyer, seller, router seller swap, router swap,
+
+
+            expect(nft1Data.owner_address.toString()).toBe(buyer.address.toString());
+        });
+
+
+
+
+        // try to withdraw fee token from router
+
+    
 
     });
 
